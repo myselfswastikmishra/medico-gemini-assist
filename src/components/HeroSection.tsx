@@ -20,10 +20,10 @@ export function HeroSection() {
               </p>
             </div>
             <div className="flex flex-col gap-2 min-[400px]:flex-row">
-              <Button size="lg" className="px-8">
+              <Button size="lg" className="px-8" onClick={() => document.getElementById('appointment')?.scrollIntoView({ behavior: 'smooth' })}>
                 Book Appointment
               </Button>
-              <Button size="lg" variant="outline" className="px-8">
+              <Button size="lg" variant="outline" className="px-8" onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })}>
                 Explore Services
               </Button>
             </div>

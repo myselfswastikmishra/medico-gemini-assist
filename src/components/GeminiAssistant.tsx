@@ -19,7 +19,7 @@ export function GeminiAssistant() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Hello! I'm your AI medical assistant. How can I help you today? Please note that I'm here to provide information, but not medical diagnosis or treatment."
+      content: "Hello! 👋 I'm your AI medical assistant. How can I help you today? Please note that I'm here to provide information, but not medical diagnosis or treatment."
     }
   ]);
   const [input, setInput] = useState("");
@@ -75,7 +75,7 @@ export function GeminiAssistant() {
             {
               parts: [
                 {
-                  text: `You are a helpful medical assistant AI. You provide information about medical topics, but always clarify that you're not providing medical advice or diagnosis. Respond to the following query in a helpful, accurate, and compassionate way, focusing on medical information: ${prompt}`
+                  text: `You are a helpful medical assistant AI. You provide information about medical topics, but always clarify that you're not providing medical advice or diagnosis. Respond to the following query in a helpful, accurate, and compassionate way, focusing on medical information. Keep your responses concise and professional. Use 1-2 relevant emojis in your response but don't overdo it. Avoid using asterisks (*) for emphasis or bullet points: ${prompt}`
                 }
               ]
             }
@@ -84,7 +84,7 @@ export function GeminiAssistant() {
             temperature: 0.7,
             topK: 40,
             topP: 0.95,
-            maxOutputTokens: 1024,
+            maxOutputTokens: 800,
           }
         })
       });
@@ -107,7 +107,7 @@ export function GeminiAssistant() {
           ...prev, 
           { 
             role: "assistant", 
-            content: `I'm sorry, I couldn't process your request. Error: ${data.error.message || "Unknown error"}. Please try again later.` 
+            content: `I'm sorry, I couldn't process your request. Error: ${data.error.message || "Unknown error"}. Please try again later. 🙁` 
           }
         ]);
       } else {
@@ -116,7 +116,7 @@ export function GeminiAssistant() {
           ...prev, 
           { 
             role: "assistant", 
-            content: "I'm sorry, I couldn't process your request at the moment. Please try again later." 
+            content: "I'm sorry, I couldn't process your request at the moment. Please try again later. 🙁" 
           }
         ]);
       }
@@ -131,7 +131,7 @@ export function GeminiAssistant() {
         ...prev, 
         { 
           role: "assistant", 
-          content: "I'm sorry, there was an error processing your request. Please try again later." 
+          content: "I'm sorry, there was an error processing your request. Please try again later. 🙁" 
         }
       ]);
     } finally {
