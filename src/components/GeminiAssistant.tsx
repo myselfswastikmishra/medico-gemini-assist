@@ -7,6 +7,7 @@ import { Send, User, BriefcaseMedical, Loader2, Upload, FileText } from "lucide-
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Types for the assistant
 type Message = {
@@ -60,8 +61,9 @@ export function GeminiAssistant() {
       
       // If we have a file, read it and process separately
       if (selectedFile) {
+        setIsAnalyzingFile(true);
         const fileContent = await readFileAsText(selectedFile);
-        prompt = `${input ? input + "\n\n" : ""}I'm sharing a medical report. Please analyze it, provide a summary, and explain any medical terms in simple language:\n\n${fileContent}`;
+        prompt = `${input ? input + "\n\n" : ""}I'm sharing a medical report. Please analyze it, provide a summary, and explain any medical terms in simple language. Keep your response crisp, professional and concise:\n\n${fileContent}`;
       }
 
       // Call Gemini API with updated version
@@ -136,6 +138,7 @@ export function GeminiAssistant() {
       ]);
     } finally {
       setIsLoading(false);
+      setIsAnalyzingFile(false);
       setSelectedFile(null);
     }
   };
@@ -275,7 +278,8 @@ export function GeminiAssistant() {
               </form>
             </div>
             <div className="w-full text-xs text-muted-foreground text-left">
-              {selectedFile && <span>File ready: {selectedFile.name}</span>}
+              {isAnalyzingFile && <span className="flex items-center"><Loader2 className="h-3 w-3 animate-spin mr-1" /> Analyzing medical report...</span>}
+              {selectedFile && !isAnalyzingFile && <span>File ready: {selectedFile.name}</span>}
             </div>
           </CardFooter>
         </Card>
