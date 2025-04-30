@@ -3,13 +3,16 @@ import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, User, BriefcaseMedical, Loader2 } from "lucide-react";
+import { Send, User, BriefcaseMedical, Loader2, Upload, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
 
 // Types for the assistant
 type Message = {
   role: "user" | "assistant";
   content: string;
+  fileUrl?: string;
 };
 
 export function GeminiAssistant() {
@@ -21,7 +24,10 @@ export function GeminiAssistant() {
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isAnalyzingFile, setIsAnalyzingFile] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // API key for Gemini
   const API_KEY = "AIzaSyDo3ahg4cUTIHMNkU_NadC3cQ7OXt-D4HI";
@@ -37,17 +43,29 @@ export function GeminiAssistant() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() && !selectedFile) return;
 
     // Add user message
-    const userMessage = { role: "user", content: input };
+    const userMessage: Message = { 
+      role: "user", 
+      content: input || (selectedFile ? `Uploaded file: ${selectedFile.name}` : "")
+    };
+    
     setMessages(prev => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
 
     try {
-      // Call Gemini API
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`, {
+      let prompt = input;
+      
+      // If we have a file, read it and process separately
+      if (selectedFile) {
+        const fileContent = await readFileAsText(selectedFile);
+        prompt = `${input ? input + "\n\n" : ""}I'm sharing a medical report. Please analyze it, provide a summary, and explain any medical terms in simple language:\n\n${fileContent}`;
+      }
+
+      // Call Gemini API with updated version
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -55,10 +73,9 @@ export function GeminiAssistant() {
         body: JSON.stringify({
           contents: [
             {
-              role: "user",
               parts: [
                 {
-                  text: `You are a helpful medical assistant AI. You provide information about medical topics, but always clarify that you're not providing medical advice or diagnosis. Respond to the following query in a helpful, accurate, and compassionate way, focusing on medical information: ${input}`
+                  text: `You are a helpful medical assistant AI. You provide information about medical topics, but always clarify that you're not providing medical advice or diagnosis. Respond to the following query in a helpful, accurate, and compassionate way, focusing on medical information: ${prompt}`
                 }
               ]
             }
@@ -74,11 +91,27 @@ export function GeminiAssistant() {
 
       const data = await response.json();
       
+      // Handle Gemini API response
       if (data.candidates && data.candidates[0]?.content?.parts?.length > 0) {
         const assistantReply = data.candidates[0].content.parts[0].text;
         setMessages(prev => [...prev, { role: "assistant", content: assistantReply }]);
-      } else {
+      } else if (data.error) {
         // Handle API error or empty response
+        console.error("Gemini API error:", data.error);
+        toast({
+          title: "Error",
+          description: `API Error: ${data.error.message || "Failed to get response"}`,
+          variant: "destructive"
+        });
+        setMessages(prev => [
+          ...prev, 
+          { 
+            role: "assistant", 
+            content: `I'm sorry, I couldn't process your request. Error: ${data.error.message || "Unknown error"}. Please try again later.` 
+          }
+        ]);
+      } else {
+        // Generic error
         setMessages(prev => [
           ...prev, 
           { 
@@ -89,6 +122,11 @@ export function GeminiAssistant() {
       }
     } catch (error) {
       console.error("Error calling Gemini API:", error);
+      toast({
+        title: "Error",
+        description: "Failed to connect to the Gemini API. Please try again.",
+        variant: "destructive"
+      });
       setMessages(prev => [
         ...prev, 
         { 
@@ -98,7 +136,38 @@ export function GeminiAssistant() {
       ]);
     } finally {
       setIsLoading(false);
+      setSelectedFile(null);
     }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      toast({
+        title: "File Selected",
+        description: `${file.name} ready for analysis.`,
+      });
+    }
+  };
+
+  const readFileAsText = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target && typeof e.target.result === 'string') {
+          resolve(e.target.result);
+        } else {
+          reject(new Error("Failed to read file"));
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file);
+    });
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
   };
 
   return (
@@ -113,7 +182,7 @@ export function GeminiAssistant() {
               Your Health Information Companion
             </h2>
             <p className="max-w-[700px] text-muted-foreground md:text-xl">
-              Ask health-related questions and get instant, reliable information
+              Ask health-related questions and get instant, reliable information. Upload medical reports for analysis.
             </p>
           </div>
         </div>
@@ -154,25 +223,60 @@ export function GeminiAssistant() {
                       </span>
                     </div>
                     <div className="text-left whitespace-pre-wrap">{message.content}</div>
+                    {message.fileUrl && (
+                      <div className="mt-2">
+                        <a href={message.fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline flex items-center gap-1">
+                          <FileText size={16} /> View uploaded file
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
               <div ref={messagesEndRef} />
             </div>
           </CardContent>
-          <CardFooter>
-            <form onSubmit={handleSubmit} className="flex w-full items-center space-x-2">
-              <Textarea
-                placeholder="Ask a health question..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                className="flex-1"
-                disabled={isLoading}
-              />
-              <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          <CardFooter className="flex-col gap-2">
+            <div className="flex w-full items-center gap-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="icon" 
+                onClick={triggerFileInput} 
+                className="flex-shrink-0"
+                disabled={isLoading || isAnalyzingFile}
+              >
+                <Upload className="h-4 w-4" />
+                <span className="sr-only">Upload file</span>
               </Button>
-            </form>
+              <Input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileSelect} 
+                className="hidden" 
+                accept=".txt,.pdf,.doc,.docx,.csv"
+              />
+              {selectedFile && (
+                <div className="text-xs text-muted-foreground mr-2 flex-shrink-0">
+                  {selectedFile.name}
+                </div>
+              )}
+              <form onSubmit={handleSubmit} className="flex w-full items-center space-x-2">
+                <Textarea
+                  placeholder="Ask a health question or upload a medical report..."
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  className="flex-1"
+                  disabled={isLoading || isAnalyzingFile}
+                />
+                <Button type="submit" size="icon" disabled={isLoading || isAnalyzingFile || (!input.trim() && !selectedFile)}>
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Button>
+              </form>
+            </div>
+            <div className="w-full text-xs text-muted-foreground text-left">
+              {selectedFile && <span>File ready: {selectedFile.name}</span>}
+            </div>
           </CardFooter>
         </Card>
       </div>
